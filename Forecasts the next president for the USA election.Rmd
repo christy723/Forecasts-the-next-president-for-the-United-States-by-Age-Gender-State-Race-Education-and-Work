@@ -1,0 +1,181 @@
+---
+title: Forecasts the next president for the United States by Age, Gender, State, Race,
+  Education and Employment
+author: "Jiawei Du, Lin Zhu, Siri Huang, Wang Xinyu"
+date: '2020-11-02'
+output:
+  word_document: default
+  bookdown::pdf_document2: default
+  pdf_document: default
+  html_document:
+    df_print: paged
+bibliography: references.bib
+link: https://github.com/christy723/Forecasts-the-next-president-for-the-United-States-by-Age-Gender-State-Race-Education-and-Work.git
+nocite: '@*'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+```
+
+# Abstract
+
+The 2020 United States Presidential election is scheduled to be held on Tuesday, November 3, 2020. We used a logistic regression model with poststratification to estimate the probability of Donald Trump winning this election. We estimated the probability to be 0.411. Limitations of our analysis include assuming all voters were over 18 and only using six variables in the prediction model which resulted in the model having suboptimal prediction power. Next steps include increasing model prediction and quantifying the margin of error with more robust techniques.
+
+Keywords: election, politics, United States, Donald Trump, Joe Biden, United States Presidential election
+
+\newpage
+
+# Introduction
+
+The 2020 US presidential election is scheduled to be held on Tuesday, November 3, 2020. This will be the 59th quadrennial  presidential election. Voters will choose presidential electors who then will vote on December 14, 2020, to either elect a new president and vice president or re-elect the incumbents Donald Trump and Mike Pence, respectively.The series of presidential primary elections and caucuses took place from February to August 2020. This nominating procedure is an indirect election, where voters cast ballots choosing a slate of delegates to a nominating convention of a political party, who subsequently elect their parties' nominees for president and vice president. The major two-party candidates are Republican incumbent President Donald Trump and Democratic former Vice President Joe Biden, considered a referendum on the Trump presidency. 
+
+The primary goal of this paper is to predict the overall popular vote of the 2020 American presidential election using multilevel regression with post-stratification. The outcome of interest was whether a person would vote for Donald Trump, which was binary. We first used a logistic regression model to model this outcome variable using socio-demographic and politically relevant variables. Then, we post-stratified the sample using the variables in the model and assigned individuals into different groups based on variable combinations. Then, we used the model estimates to predict the probability of voting for Donald Trump for each variable combination. Finally, we combined the estimated probabilities to calculate the probability of Donald Trump wininng the election. 
+
+\newpage
+
+# Data
+
+We used two datasets in this analysis. The first dataset is the Democracy Fund + UCLA Nationscape 'Full
+Data Set' [@tausanovitch2019democracy]. Which is a weekly political poll on conducted by UCLA Democracy Fund Voter Study Group. We used Nationscape Wave 50 which was held from June 25 - July 01, 2020. This dataset has Individual level survey data. We pre-processed the dataset and selected demographic and politics-related variables including voting preferences, education level, geographic areas, ethniicty and employment status. 
+
+The second dataset has post-stratification data. We used the U.S. CENSUS DATA FOR SOCIAL, ECONOMIC, AND HEALTH RESEARCH from IPUMS USA. "IPUMS USA collects, preserves and harmonizes U.S. census microdata and provides easy access to this data with enhanced documentation. Data includes decennial censuses from 1790 to 2010 and American Community Surveys (ACS) from 2000 to the present" [@citeipums]. The dataset we chose was the 2018 1-year American Community Surveys (ACS). "The American Community Survey (ACS) helps local officials, community leaders, and businesses understand the changes taking place in their communities. It is the premier source for detailed population and housing information about our nation." [@citeipums] We selected demographic and politics-related variables including voting preferences, education level, geographic areas, ethniicty and income level. 
+
+```{r}
+# import the pre-processed survey Data
+survey_data <- read_csv("survey_data.csv")
+# import the pre-processed census Data
+census_data <- read_csv("census_data.csv")
+
+# more data pre-processing
+survey_data <- survey_data %>% mutate(race = case_when(
+  race_ethnicity == "White" ~ "white",
+  race_ethnicity == "Black, or African American" ~ "black",
+  race_ethnicity == "Asian (Asian Indian)" ~ "Asian",
+  race_ethnicity == "Asian (Vietnamese)" ~ "Asian",
+  race_ethnicity == "Asian (Chinese)" ~ "Asian", 
+  race_ethnicity == "Asian (Korean)" ~ "Asian", 
+  race_ethnicity == "Asian (Japanese)" ~ "Asian", 
+  race_ethnicity == "Some other race" ~ "other", 
+  race_ethnicity == "Asian (Filipino)" ~ "Asian",
+  race_ethnicity == "Asian (Other)" ~ "Asian", 
+  race_ethnicity == "Pacific Islander (Native Hawaiian)" ~ "Pacific", 
+  race_ethnicity == "Pacific Islander (Samoan)" ~ "Pacific", 
+  race_ethnicity == "Pacific Islander (Other)" ~ "Pacific", 
+  race_ethnicity == "Pacific Islander (Guamanian)" ~ "Pacific", 
+  race_ethnicity == "American Indian or Alaska Native" ~ "native"),
+  education = case_when(education=="Associate Degree" ~ "college",
+                        education=="College Degree (such as B.A., B.S.)" ~ "college",
+                        education=="High school graduate" ~ "high school",
+                        education=="Other post high school vocational training" ~ "vocational",
+                        education=="Completed some college, but no degree" ~ "high school",
+                        education=="Masters degree" ~ "college",
+                        education=="Middle School - Grades 4 - 8" ~ "less than high school",
+                        education=="Completed some high school" ~ "less than high school",
+                        education=="Doctorate degree" ~ "college",
+                        education=="3rd Grade or less" ~ "less than high school"),
+  work = case_when(employment %in% c("Full-time employed", 
+                                     "Part-time employed",
+                                     "Self-employed") ~ "yes",
+                   employment %in% c("Unemployed or temporarily on layoff",
+                                     "Retired",
+                                     "Student",
+                                     "Homemaker",
+                                     "Permanently disabled",
+                                     "Other:") ~ "no")) %>% drop_na()
+
+```
+
+\newpage
+
+# Model
+
+The outcome of interest is whether a person would vote for Donald Trump in the 2020 American Presidential Election. This is an binary outcome. We will use a multivariable logistic (logit) regression model to model this outcome. The variables used in the model to predict the outcome are age, sex, state, race, education level and work status (currently working or not). These are important demographic variables that are typically found in many surveys and political polls. We will use these variables to predict whether a person would vote for Donald Trump. The model formulation is as follows:
+
+$$
+\log(\frac{p_i}{1-p_i}) = \boldsymbol{X_i}\boldsymbol{\beta}
+$$
+where
+
+$$
+p_i = \text{the probability of individual i voting for Donald Trump}
+$$
+and 
+
+$$
+i = 1 \ldots n
+$$
+and
+
+$$
+\boldsymbol{\beta} \ \text{is a vector of regression coefficients}
+$$
+$$
+\boldsymbol{X_i} \ \text{is the design matrix for the logit model}
+$$
+
+We were interested in the prediction power of our logistic regression model. We assessed this by using the Receiver Operator Curve and the Area Under the Curve. The Receiver Operating Characteristic curve, or ROC, is a visualization techinque that illustrates the diagnostic ability of a binary classifier model such as the logistic regression model as its discrimination threshold is varied.  The ROC curve is created by plotting the true positive rate (TPR), or sensitivity, against the false positive rate (FPR), or specificity, at various threshold settings. 
+
+Next, we conducted poststratification on the sample using the multivariable logistic regression model we built. Multilevel regression with poststratification is a statistical technique for adjusting model estimates for known differences within a sample population, and a target population. The poststratification refers to the process of adjusting the estimates, basically a weighted average of estimates from all possible combinations of variables/ characteristics such as age, sex and education level. Each combination is sometimes called a "cell". The multilevel regression is used to smooth out random noisy estimates in the cells with too little data by using overall or close-by averages. In this case, we are using the variables we built our logit model with to construct the cells for poststratification.
+
+The point estimate from poststratification is the estimated probability of Donald Trump winning the 2020 United States Presidential Election. The margin of error is the standard deviation of the estimated probability times the 97.5% quantile of the normal distribution, so that the margin of error corresponds to 95% level of confidence. 
+
+\newpage
+
+# Results
+
+The ROC curve for the logistic regression model is shown in Figure \@ref(fig:fig1) The AUC is 0.69 indicating sufficiently good model prediction power. 
+
+```{r fig1, fig.cap="ROC curve of the fitted logistic regression model"}
+library(pROC)
+model <- glm(vote_trump ~ age + gender + state + race + education + work, 
+            data=survey_data, family="binomial")
+prob=predict(model,type=c("response"))
+survey_data$prob <-prob
+g <- roc(vote_trump ~ prob, data = survey_data)
+ggroc(g, legacy.axes = T) + labs(title="Receiver Operator Curve", subtitle="logistic regression model",
+                caption= "Area Under the Curve: 0.69") + theme_bw()
+```
+
+The point estimate of the probability of Donald Trump winning the election, the margin of error around it, and the 95% confidence interval around it, calculated from the poststratification conducted are presented in Table \@ref(tab:tab1) below.
+
+```{r}
+# post-stratification calculation
+census_data$estimate <-
+  model %>%
+  predict(newdata = census_data, type="response")
+
+store <- census_data %>%
+  mutate(alp_predict_prop = estimate*n) %>%
+  summarise(alp_predict = sum(alp_predict_prop)/sum(n))
+```
+
+```{r tab1}
+library(knitr)
+results <- data.frame(`Point estimate` = store$alp_predict,
+                      `Margin of error` = qnorm(.975) * sd(census_data$estimate))
+kable(results, caption="Point estimate and margin of error of probabiliy of Donald Trump winning",
+      digits=3)
+```
+
+\newpage
+
+# Discussion
+
+We analyzed the individual level survey data from Democracy Fund + UCLA Nationscape and poststratification cnesus data from the American Community Surveys (ACS) to predict the probability of Donald Trump winning the United States 2020 Presidential Election. We built a multivarible logistic regression model and used it to compute poststratification estimates. Our results indicate that the probability of Trump winning the election was estimated to be 0.411. This means Donald Trump has just a little over 40% of winning against Joe Biden. 
+
+## Weaknesses
+
+Since we only used six variables in our logistic regression model, the predicting power of our model is suboptimal, only at 69%. This indicates that there are other factors that influence whether a vote would vote for Donald Trump. These are confounding factors that should be accounted for in the model. Also, we made the assumption that the eligible voting age is 18 years old. In fact in the United States the eligible voting age is different for each state. Also, the technique for calculating the margin of error is naive, a more robust foruma takes into the account of postratification weighting.
+
+## Next steps
+
+We would try to incorporate randomness in different levels of the sampling such as geographic variation and use a multilevel model. In addition, we could try to search for factors that could influence our outcome of interest to reduce the level of confounding and increase model prediction power. We could also try to compare models based on model comparison criteria based on overall model fit and nested model comparison statistical tests. A more robust technique of calculating the margin of error could be applied.
+
+\newpage
+
+## Link
+https://github.com/christy723/Forecasts-the-next-president-for-the-United-States-by-Age-Gender-State-Race-Education-and-Work.git
+
+# References

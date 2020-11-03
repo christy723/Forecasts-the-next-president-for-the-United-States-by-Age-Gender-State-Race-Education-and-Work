@@ -1,5 +1,5 @@
 #### Preamble ####
-# Purpose: Prepare and clean the survey data downloaded from [...UPDATE ME!!!!!]
+# Purpose: Prepare and clean the survey data downloaded from [https://web.microsoftstream.com/video/80e25a4e-f33e-428e-94c9-b599ec374f43]
 # Author: Jiawei Du, Lin Zhu, Siri Huang, Wang Xinyu
 # Data: 22 October 2020
 # Contact: christy.wang@mail.utoronto.ca
